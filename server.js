@@ -4,10 +4,26 @@ let movies = require('./data/movies');
 
 const body_parser = require('body-parser');
 
+var multipart = require('connect-multiparty');
+var md_upload = multipart({ uploadDir: './uploads' });
+var path = require('path');
+var fs = require('fs');
+
 const port = 4000;
 
 // parse JSON (application/json content-type)
+server.use(body_parser.urlencoded({extended:false}));
 server.use(body_parser.json());
+
+// configurar cabeceras http
+server.use((req, res, next) => {
+	res.header('Access-Control-Allow-Origin', '*');
+	res.header('Access-Control-Allow-Headers', 'Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method');
+	res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+	res.header('Allow', 'GET, POST, OPTIONS, PUT, DELETE');
+
+	next();
+});
 
 server.get("/", (req, res) => {
    res.sendFile(__dirname + '/index.html');
@@ -62,7 +78,6 @@ server.put("/movies/:id", (req, res) => {
 });
 
 // delete item from list
-// delete item from list
 server.delete("/movies/:id", (req, res) => {
    const itemId = req.params.id;
 
@@ -76,6 +91,57 @@ server.delete("/movies/:id", (req, res) => {
 
    res.json(movies);
 });
+
+// upload image item
+server.post("/upload-image/:id", [md_upload], (req, res) => {
+	const itemId = req.params.id;
+   var file_name = 'No subido...';
+   
+   const updatedListItems = [];
+
+	if(req.files){
+      var file_path = req.files.image.path;
+		var file_split = file_path.split('\\');
+		var file_name = file_split[1];
+		var ext_split = file_name.split('\.');
+		var file_ext = ext_split[1];
+
+		if(file_ext == 'png' || file_ext == 'jpg' || file_ext == 'gif'){
+
+         movies.forEach(oldItem => {
+            if (oldItem.id === itemId) {
+               oldItem.cover = file_name
+               updatedListItems.push(oldItem);
+            }else {
+               updatedListItems.push(oldItem);
+            }
+         });
+
+         // replace old list with new one
+         movies = updatedListItems;
+
+         res.json(movies);
+
+		}else{
+			res.status(200).send({message: 'Extensión del archivo no valida'});
+		}
+		
+	}else{
+		res.status(200).send({message: 'No has subido ninguna imagen...'});
+	}
+})
+
+server.get("/get-image/:imageFile", (req, res) => {
+	var imageFile = req.params.imageFile;
+	var path_file = './uploads/'+imageFile;
+	fs.exists(path_file, function(exists){
+		if(exists){
+			res.sendFile(path.resolve(path_file));
+		}else{
+			res.status(200).send({message: 'No existe la imagen...'});
+		}
+	});
+})
 
 server.post("/user/login", (req, res) => {
    const item = req.body;
